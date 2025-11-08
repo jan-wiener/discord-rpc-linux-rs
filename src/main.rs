@@ -1,7 +1,6 @@
 use dotenvy::dotenv;
 use std::collections::HashMap;
 use std::error::Error;
-use std::hash::Hash;
 use std::{env, io};
 use std::{thread, time::Duration};
 use zbus::Connection;
@@ -89,7 +88,7 @@ impl MediaConn {
             // println!("{:?}", meta_map);
 
             if let Some(v) = meta_map.get("xesam:title") {
-                println!("{}", v);
+                // println!("{}", v);
 
                 if let Ok(title) = v.downcast_ref::<String>() {
                     println!("Title: {}", title);
@@ -98,7 +97,7 @@ impl MediaConn {
             }
 
             if let Some(v) = meta_map.get("xesam:url") {
-                println!("{}", v);
+                // println!("{}", v);
 
                 if let Ok(url) = v.downcast_ref::<String>() {
                     println!("url: {}", url);
@@ -120,7 +119,7 @@ impl MediaConn {
             }
 
             if let Some(v) = meta_map.get("xesam:album") {
-                println!("{}", v);
+                // println!("{}", v);
 
                 if let Ok(album) = v.downcast_ref::<String>() {
                     println!("Album: {}", album);
@@ -130,7 +129,7 @@ impl MediaConn {
 
             if let Some(v) = meta_map.get("xesam:artist") {
                 if let Ok(artist_arr) = v.downcast_ref::<Array>() {
-                    println!("{}", v);
+                    // println!("{}", v);
                     output.insert("Artists".into(), vec![]);
                     let art_vec = output.get_mut("Artists").unwrap();
                     for artist_v in artist_arr.iter() {
@@ -155,9 +154,6 @@ impl MediaConn {
     }
 
     async fn get_media_info(&self) -> Result<HashMap<String, Vec<String>>, Box<dyn Error>> {
-        let mut output: HashMap<String, Vec<String>> = HashMap::new();
-
-        // let conn = Connection::session().await?;
 
         let dbus_proxy = DBusProxy::new(&self.conn).await?;
 
@@ -165,17 +161,15 @@ impl MediaConn {
 
         let mut media_services: Vec<String> = vec![];
 
-        let mut service_name = "".to_string();
 
         for name in names {
             // println!("{}", name);
             if name.starts_with("org.mpris.MediaPlayer2.") {
                 println!("Found player: {}", name);
-                service_name = name.to_string();
                 media_services.push(name.to_string());
             }
         }
-        println!("_---\n {:?}", media_services);
+        // println!("_---\n {:?}", media_services);
 
         let mut final_output: Result<HashMap<String, Vec<String>>, Box<dyn Error>> =
             Err(io::Error::new(io::ErrorKind::Other, "No media").into());
