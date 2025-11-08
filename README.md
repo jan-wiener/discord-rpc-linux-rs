@@ -15,12 +15,16 @@ APP_ID = your_discord_app_id
 Add whitelisted keywords to whitelist.json
 non-whitelist mode not implemented
 
+
+# config.json
 code checks xesam:url for the keywords in whitelist
-(i.e. "music" allows music.youtube.com to update the rich presence, but some websites/apps dont show xesam:url and those wont work, might fix later) 
+(i.e. "music" allows music.youtube.com to update the rich presence, but some websites/apps dont show xesam:url and those wont work, you have to change the config) 
+
+...checks for xesam:artist in the artist blacklist
 
 
 
-compile with:
+# Compiling
 ```bash
 cargo build --release
 ```

@@ -1,6 +1,8 @@
 use dotenvy::dotenv;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs;
 use std::{env, io};
 use std::{thread, time::Duration};
 use zbus::Connection;
@@ -8,8 +10,6 @@ use zbus::fdo::DBusProxy;
 use zbus::fdo::PropertiesProxy;
 use zvariant::Array;
 use zvariant::Value;
-use serde::Deserialize;
-use std::fs;
 
 async fn format_time(mut secs: i64) -> String {
     let mut mins: i64 = 0;
@@ -24,23 +24,30 @@ async fn format_time(mut secs: i64) -> String {
     return format!("{}:{}", mins, secs);
 }
 
-
 #[derive(Deserialize, Debug)]
-struct Whitelist {
+struct Config {
     pub keyword_whitelist: Vec<String>,
+    pub use_whitelist: bool,
+    pub play_no_url: bool,
+    pub artist_keyword_blacklist: Vec<String>,
+    pub use_artist_blacklist: bool,
 }
 
 struct MediaConn {
     conn: Connection,
-    whitelist: Vec<String>,
+    config: Config,
 }
 impl MediaConn {
     async fn new() -> Result<MediaConn, zbus::Error> {
         let conn = Connection::session().await?;
-        let file = fs::read_to_string("whitelist.json")?;
-        let whitelist_inst: Whitelist = serde_json::from_str(&file).unwrap();
+        let file = fs::read_to_string("config.json")?;
+        let config: Config = serde_json::from_str(&file).unwrap();
 
-        Ok(Self { conn, whitelist: whitelist_inst.keyword_whitelist })
+        // let use_whitelist = whitelist_inst.use_whitelist;
+        // let play_no_url = whitelist_inst.play_no_url;
+        // let whitelist = whitelist_inst.keyword_whitelist;
+
+        Ok(Self { conn, config })
     }
 
     async fn analyze(
@@ -112,20 +119,27 @@ impl MediaConn {
 
                 if let Ok(url) = v.downcast_ref::<String>() {
                     println!("url: {}", url);
-                    let mut found = false;
-                    for whitelisted in &self.whitelist {
-                        println!("\n\n--- {}", whitelisted);
-                        if url.contains(whitelisted) {
-                            output.insert("url".into(), vec![url]);
-                            found = true;
-                            break;
+
+                    if !self.config.use_whitelist {
+                        output.insert("url".into(), vec![url]);
+                    } else {
+                        let mut found = false;
+                        for whitelisted in &self.config.keyword_whitelist {
+                            println!("\n\n--- {}", whitelisted);
+                            if url.contains(whitelisted) {
+                                output.insert("url".into(), vec![url]);
+                                found = true;
+                                break;
+                            }
+                        }
+                        if !found {
+                            return Err(
+                                io::Error::new(io::ErrorKind::Other, "Not whitelisted").into()
+                            );
                         }
                     }
-                    if !found {
-                        return Err(io::Error::new(io::ErrorKind::Other, "Not whitelisted").into());
-                    }
                 }
-            } else {
+            } else if !self.config.play_no_url {
                 return Err(io::Error::new(io::ErrorKind::Other, "Not found url").into());
             }
 
@@ -146,7 +160,21 @@ impl MediaConn {
                     for artist_v in artist_arr.iter() {
                         if let Ok(artist) = artist_v.downcast_ref::<String>() {
                             println!("Artist: {} ", artist);
+
                             art_vec.push(artist);
+                        }
+                    }
+                    if self.config.use_artist_blacklist {
+                        for artist in art_vec {
+                            for keyword in &self.config.artist_keyword_blacklist {
+                                if artist.contains(keyword) {
+                                    return Err(io::Error::new(
+                                        io::ErrorKind::Other,
+                                        "Artist blacklisted",
+                                    )
+                                    .into());
+                                }
+                            }
                         }
                     }
                 }
@@ -165,13 +193,11 @@ impl MediaConn {
     }
 
     async fn get_media_info(&self) -> Result<HashMap<String, Vec<String>>, Box<dyn Error>> {
-
         let dbus_proxy = DBusProxy::new(&self.conn).await?;
 
         let names = dbus_proxy.list_names().await?;
 
         let mut media_services: Vec<String> = vec![];
-
 
         for name in names {
             // println!("{}", name);
@@ -194,7 +220,10 @@ impl MediaConn {
                         final_output = Ok(out_ex);
                     }
                 }
-                Err(_) => continue,
+                Err(e) => {
+                    println!("Output not allowed: {}", e);
+                    continue;
+                },
             }
         }
         final_output
@@ -219,11 +248,12 @@ fn main() -> Result<(), ()> {
     let mut pos: String = "0".to_string();
     loop {
         thread::sleep(Duration::from_millis(2000));
+        println!("-----------NEW HEARTBEAT-------");
         let out: HashMap<String, Vec<String>>;
         match rt.block_on(mediaconn.get_media_info()) {
             Ok(o) => out = o,
             Err(e) => {
-                println!("{}", e);
+                println!("ERROR: {}", e);
 
                 drpc.clear_activity().unwrap();
                 continue;

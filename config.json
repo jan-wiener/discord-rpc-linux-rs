@@ -1,0 +1,10 @@
+{
+  "keyword_whitelist": [
+    "music"
+  ],
+  "use_whitelist": true,
+  "artist_keyword_blacklist": ["Drake"],
+  "use_artist_blacklist": true,
+  "play_no_url": false
+  
+}
