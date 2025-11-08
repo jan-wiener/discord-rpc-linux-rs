@@ -257,6 +257,7 @@ dependencies = [
  "discord-rpc-client",
  "dotenvy",
  "reqwest",
+ "serde",
  "serde_json",
  "tokio",
  "zbus",

@@ -5,8 +5,14 @@ Discord rich presence for media written in rust.
 
 Very bad code btw
 
-compile with 
+Create a discord app with the name you want people to see on your profile
+(something like "Listening to" or "Watching")
+Create a .env 
+```.env
+APP_ID = your_discord_app_id
+```
 
+compile with:
 ```bash
 cargo build --release
 ```

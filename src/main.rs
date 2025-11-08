@@ -8,6 +8,8 @@ use zbus::fdo::DBusProxy;
 use zbus::fdo::PropertiesProxy;
 use zvariant::Array;
 use zvariant::Value;
+use serde::Deserialize;
+use std::fs;
 
 async fn format_time(mut secs: i64) -> String {
     let mut mins: i64 = 0;
@@ -22,14 +24,23 @@ async fn format_time(mut secs: i64) -> String {
     return format!("{}:{}", mins, secs);
 }
 
+
+#[derive(Deserialize, Debug)]
+struct Whitelist {
+    pub keyword_whitelist: Vec<String>,
+}
+
 struct MediaConn {
     conn: Connection,
     whitelist: Vec<String>,
 }
 impl MediaConn {
-    async fn new(whitelist: Vec<String>) -> Result<MediaConn, zbus::Error> {
+    async fn new() -> Result<MediaConn, zbus::Error> {
         let conn = Connection::session().await?;
-        Ok(Self { conn, whitelist })
+        let file = fs::read_to_string("whitelist.json")?;
+        let whitelist_inst: Whitelist = serde_json::from_str(&file).unwrap();
+
+        Ok(Self { conn, whitelist: whitelist_inst.keyword_whitelist })
     }
 
     async fn analyze(
@@ -203,7 +214,7 @@ fn main() -> Result<(), ()> {
             .unwrap(),
     );
     drpc.start();
-    let mediaconn = rt.block_on(MediaConn::new(vec!["music".into()])).unwrap();
+    let mediaconn = rt.block_on(MediaConn::new()).unwrap();
 
     let mut pos: String = "0".to_string();
     loop {
