@@ -233,27 +233,57 @@ impl MediaConn {
 
 use tokio::runtime::Runtime;
 
-use math_text_transform::{math_bold};
+use math_text_transform::{math_bold, math_italic};
 
-fn embolden(s: &String) -> Result<String, io::Error> {
+fn change(s: &String, modifier: &dyn Fn(char) -> Option<char>) -> Result<String, io::Error> {
     let mut out: String = "".into();
-    let ignore :Vec<char> = vec!['(', ')', ' ', '[', ']', '"', ',', '\n', ' '];
+
+    let ignore: Vec<char> = vec!['(', ')', ' ', '[', ']', '"', ',', '\n', '\u{a0}', '\'', '-'];
+    let stop_chars: Vec<char> = vec!['(', '['];
     for i in s.chars() {
-        if let Some(variant) = math_bold(i) {
+        if let Some(variant) = modifier(i) {
             out.push(variant);
+        } else if stop_chars.contains(&i) {
+            break;
+            // out.push(i);
         } else if ignore.contains(&i) {
             out.push(i);
         } else {
             // println!("EEEEEEEEEEE");
-            println!("Wrong char: {}", i);
+            println!("Wrong char code: {} ----{}", i as u32, i);
+
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 "Unable to fully transform",
             ));
         }
     }
+
+    out.push_str(s.chars().skip(out.chars().count()).collect::<String>().as_str());
+
     Ok(out)
 }
+
+
+fn truncate_utf8_bytes(s: String, max_bytes: usize) -> String {
+    let mut len = 0;
+    let mut out = String::new();
+
+    for c in s.chars() {
+        let char_len = c.len_utf8();
+        if len + char_len > max_bytes {
+            out.push_str("...");
+            break;
+        }
+        len += char_len;
+        out.push(c);
+    }
+
+    out
+}
+
+
+use math_text_transform::math_bold_script;
 fn main() -> Result<(), ()> {
     let rt = Runtime::new().unwrap();
     dotenv().ok();
@@ -283,21 +313,20 @@ fn main() -> Result<(), ()> {
         };
 
         let mut title = out.get("Title").unwrap()[0].clone();
-        
+
         let artists = out.get("Artists").unwrap();
         let mut artstr: String = artists.join(", ");
 
         if mediaconn.config.embolden_titles {
-            if let Ok(outx) = embolden(&title) {
+            if let Ok(outx) = change(&title, &math_bold) {
                 title = outx;
             }
-            if let Ok(outx) = embolden(&artstr) {
+            if let Ok(outx) = change(&artstr, &math_italic) {
                 artstr = outx;
-                
             }
             // title = title.to_math_bold();
         }
-
+        // println!("TITLE : {}", title);
 
         let album = out.get("Album").unwrap()[0].clone();
 
@@ -306,19 +335,21 @@ fn main() -> Result<(), ()> {
         let state;
         match playing {
             p if p == "Playing" => {
-                state = format!("By: {}", artstr);
+                state = format!("{}: {}",change(&"By".to_string(), &math_bold_script).unwrap() , artstr);
                 pos = out.get("Position").unwrap()[0].clone();
                 println!("POS::: {}", pos.clone())
             }
-            _ => state = format!("Paused at {} • \nBy: {} ", pos, artstr),
+            _ => state = format!("Paused @ {} • \nBy: {} ", pos, artstr),
         };
         println!("{}", state);
 
+        println!("\n---Setting activity---");
         drpc.set_activity(|act| {
             act.state(state)
-                .details(format!("🎵 {} • 💿 {}", title, album))
+                .details(truncate_utf8_bytes(format!("🎵 {} • 💿 {}", title, album), 125))
                 .assets(|ass| ass.large_image("arch_icon").large_text("#ARCHONTOP"))
         })
         .expect("Failed to set activity");
+        println!("\n---SUCCESS---");
     }
 }
