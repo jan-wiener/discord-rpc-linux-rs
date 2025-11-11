@@ -5,6 +5,7 @@
   "use_whitelist": true,
   "artist_keyword_blacklist": ["Drake"],
   "use_artist_blacklist": true,
-  "play_no_url": false
+  "play_no_url": false,
+  "embolden_titles": true
   
 }

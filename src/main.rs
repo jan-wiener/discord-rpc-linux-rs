@@ -31,6 +31,7 @@ struct Config {
     pub play_no_url: bool,
     pub artist_keyword_blacklist: Vec<String>,
     pub use_artist_blacklist: bool,
+    pub embolden_titles: bool,
 }
 
 struct MediaConn {
@@ -223,7 +224,7 @@ impl MediaConn {
                 Err(e) => {
                     println!("Output not allowed: {}", e);
                     continue;
-                },
+                }
             }
         }
         final_output
@@ -232,6 +233,27 @@ impl MediaConn {
 
 use tokio::runtime::Runtime;
 
+use math_text_transform::{math_bold};
+
+fn embolden(s: &String) -> Result<String, io::Error> {
+    let mut out: String = "".into();
+    let ignore :Vec<char> = vec!['(', ')', ' ', '[', ']', '"', ',', '\n', ' '];
+    for i in s.chars() {
+        if let Some(variant) = math_bold(i) {
+            out.push(variant);
+        } else if ignore.contains(&i) {
+            out.push(i);
+        } else {
+            // println!("EEEEEEEEEEE");
+            println!("Wrong char: {}", i);
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Unable to fully transform",
+            ));
+        }
+    }
+    Ok(out)
+}
 fn main() -> Result<(), ()> {
     let rt = Runtime::new().unwrap();
     dotenv().ok();
@@ -260,9 +282,22 @@ fn main() -> Result<(), ()> {
             }
         };
 
-        let title = &out.get("Title").unwrap()[0];
+        let mut title = out.get("Title").unwrap()[0].clone();
+        
         let artists = out.get("Artists").unwrap();
-        let artstr: String = artists.join(", ");
+        let mut artstr: String = artists.join(", ");
+
+        if mediaconn.config.embolden_titles {
+            if let Ok(outx) = embolden(&title) {
+                title = outx;
+            }
+            if let Ok(outx) = embolden(&artstr) {
+                artstr = outx;
+                
+            }
+            // title = title.to_math_bold();
+        }
+
 
         let album = out.get("Album").unwrap()[0].clone();
 
